@@ -88,7 +88,7 @@ class CourseListView(generic.ListView):
 
 class CourseDetailView(generic.DetailView):
     model = Course
-    template_name = 'onlinecourse/course_detail_bootstrap.html'
+    template_name = 'onlinecourse/course_details_bootstrap.html'
 
 
 def enroll(request, course_id):
@@ -179,12 +179,12 @@ def show_exam_result(request, course_id, submission_id):
         submission.choices.values_list('id', flat=True)
     )
 
-    total_score = 0
-    possible_score = 0
+    grade = 0
+    possible = 0
     question_results = []
 
     for question in course.question_set.all():
-        possible_score += question.grade
+        possible += question.grade
 
         correct_ids = set(
             question.choice_set.filter(is_correct=True)
@@ -195,17 +195,17 @@ def show_exam_result(request, course_id, submission_id):
             question.choice_set.values_list('id', flat=True)
         )
 
-        selected_for_question = selected_ids.intersection(
-            question_choice_ids
+        selected_for_question = (
+            selected_ids & question_choice_ids
         )
 
         is_correct = (
             bool(correct_ids)
-            and selected_for_question == correct_ids
+            and question.is_get_score(selected_for_question)
         )
 
         if is_correct:
-            total_score += question.grade
+            grade += question.grade
 
         question_results.append({
             'question': question,
@@ -215,18 +215,19 @@ def show_exam_result(request, course_id, submission_id):
         })
 
     percentage = (
-        total_score / possible_score * 100
-        if possible_score else 0
+        grade / possible * 100 if possible else 0
     )
 
     context = {
         'course': course,
         'submission': submission,
         'question_results': question_results,
-        'total_score': total_score,
-        'possible_score': possible_score,
+        'grade': grade,
+        'possible': possible,
+        'total_score': grade,
+        'possible_score': possible,
         'percentage': percentage,
-        'passed': percentage >= 80,
+        'passed': possible > 0 and percentage >= 80,
     }
 
     return render(
@@ -234,6 +235,3 @@ def show_exam_result(request, course_id, submission_id):
         'onlinecourse/exam_result_bootstrap.html',
         context
     )
-
-
-
